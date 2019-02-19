@@ -1,18 +1,21 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using Castle.Facilities.AspNetCore;
+using Castle.MicroKernel.Registration;
+using Castle.Windsor;
+using CastleWindsorAspNetCoreFacilityRepro.Controllers;
+using CastleWindsorAspNetCoreFacilityRepro.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace CastleWindsorAspNetCoreFacilityRepro
 {
 	public class Startup
 	{
+		private readonly WindsorContainer container = new WindsorContainer();
+
 		public Startup(IConfiguration configuration)
 		{
 			Configuration = configuration;
@@ -20,21 +23,20 @@ namespace CastleWindsorAspNetCoreFacilityRepro
 
 		public IConfiguration Configuration { get; }
 
-		// This method gets called by the runtime. Use this method to add services to the container.
-		public void ConfigureServices(IServiceCollection services)
+		public IServiceProvider ConfigureServices(IServiceCollection services)
 		{
-			services.Configure<CookiePolicyOptions>(options =>
-			{
-				// This lambda determines whether user consent for non-essential cookies is needed for a given request.
-				options.CheckConsentNeeded = context => true;
-				options.MinimumSameSitePolicy = SameSiteMode.None;
-			});
+			container.AddFacility<AspNetCoreFacility>(f => f.CrossWiresInto(services));
 
+			services.AddMvc();
+			services.AddLogging((lb) => lb.AddConsole().AddDebug());
 
-			services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
+			container.Register(Component.For<IService>().ImplementedBy<Service>().LifestyleScoped()/*.CrossWired()*/);
+			container.Register(Component.For<IFacade>().ImplementedBy<Facade>().LifestyleScoped().CrossWired());
+
+			return services.AddWindsor(container,
+				opts => opts.UseEntryAssembly(typeof(HomeController).Assembly));
 		}
 
-		// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
 		public void Configure(IApplicationBuilder app, IHostingEnvironment env)
 		{
 			if (env.IsDevelopment())
